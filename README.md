@@ -1,0 +1,2 @@
+# sheepcoin
+mining sheepcoin
