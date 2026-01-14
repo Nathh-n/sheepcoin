@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SheepCoin Cloud</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=Space+Grotesk:wght@500;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js"></script>
+    <style>
+        /* --- VARIABLES --- */
+        :root {
+            --primary: #8A2BE2; --primary-glow: rgba(138, 43, 226, 0.5);
+            --secondary: #00d4ff; --secondary-glow: rgba(0, 212, 255, 0.5);
+            --accent: #f1c40f; --danger: #ff4757; --success: #2ecc71;
+            --bg-dark: #0f172a; --glass-bg: rgba(255, 255, 255, 0.07);
+            --glass-border: 1px solid rgba(255, 255, 255, 0.15);
+            --glass-blur: blur(25px); --card-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+            --inset-bg: rgba(0, 0, 0, 0.25);
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-dark); color: #ffffff;
+            margin: 0; padding: 30px 20px; min-height: 100vh;
+            display: flex; align-items: center; justify-content: center;
+            background-image: 
+                radial-gradient(circle at 0% 0%, rgba(138, 43, 226, 0.3) 0%, transparent 50%),
+                radial-gradient(circle at 100% 100%, rgba(0, 212, 255, 0.3) 0%, transparent 50%),
+                radial-gradient(circle at 50% 50%, #0f172a 0%, #1e293b 100%);
+            background-attachment: fixed;
+        }
+
+        .container { width: 100%; max-width: 550px; position: relative; z-index: 1; }
+
+        .app-header { text-align: center; margin-bottom: 30px; }
+        .brand-logo {
+            font-family: 'Space Grotesk', sans-serif; font-size: 2.8rem; font-weight: 800; margin: 0;
+            background: linear-gradient(to right, var(--secondary) 0%, var(--primary) 100%);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; color: transparent;
+            filter: drop-shadow(0 0 15px rgba(138, 43, 226, 0.3)); display: inline-block;
+        }
+
+        .card {
+            background: var(--glass-bg); backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
+            border: var(--glass-border); border-radius: 24px; padding: 40px 30px;
+            box-shadow: var(--card-shadow); text-align: center; margin-bottom: 25px;
+            position: relative; overflow: hidden; transition: transform 0.3s ease;
+        }
+        .card::before {
+            content: ''; position: absolute; top: 0; left: -50%; width: 100%; height: 100%;
+            background: linear-gradient(to right, transparent, rgba(255,255,255,0.1), transparent);
+            transform: rotate(30deg); pointer-events: none;
+        }
+
+        h1, h2, h3 { font-family: 'Space Grotesk', sans-serif; margin-top: 0; font-weight: 700; }
+        
+        .btn {
+            width: 100%; padding: 16px; margin-top: 12px; border-radius: 14px; border: none;
+            font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 1rem; color: white;
+            cursor: pointer; transition: all 0.3s; text-transform: uppercase; letter-spacing: 1px;
+        }
+        .btn:hover:not(:disabled) { transform: translateY(-3px); box-shadow: 0 10px 20px -10px rgba(0,0,0,0.5); }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; filter: grayscale(1); }
+
+        .btn-connect { background: linear-gradient(135deg, #e67e22, #f39c12); box-shadow: 0 4px 15px rgba(230, 126, 34, 0.4); }
+        .btn-mine { background: linear-gradient(135deg, var(--primary), var(--secondary)); box-shadow: 0 4px 15px var(--primary-glow); }
+        .btn-mine:disabled { background: #4a5568 !important; box-shadow: none !important; color: #a0aec0; }
+        
+        .btn-buy { background: linear-gradient(135deg, #2ecc71, #27ae60); box-shadow: 0 4px 15px rgba(46, 204, 113, 0.4); }
+        .btn-claim { background: linear-gradient(135deg, #f1c40f, #f39c12); color: #0f172a; box-shadow: 0 4px 15px rgba(241, 196, 15, 0.4); }
+        .btn-stop { background: linear-gradient(135deg, #ff4757, #c0392b); box-shadow: 0 4px 15px rgba(255, 71, 87, 0.4); }
+        .btn-send { background: linear-gradient(135deg, var(--secondary), #3498db); color: #0f172a; box-shadow: 0 4px 15px var(--secondary-glow); margin-top: 20px; }
+
+        input, select {
+            width: 100%; padding: 14px 18px; margin-top: 10px; border-radius: 12px;
+            background: var(--inset-bg); border: 1px solid rgba(255, 255, 255, 0.1);
+            color: white; box-sizing: border-box; font-family: 'Inter', sans-serif;
+            backdrop-filter: blur(5px);
+        }
+        input:focus, select:focus { outline: none; border-color: var(--secondary); background: rgba(0, 0, 0, 0.4); }
+        option { background: var(--bg-dark); color: white; }
+
+        .wallet-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .logout-btn { background: none; border: 1px solid rgba(255, 71, 87, 0.3); color: var(--danger); cursor: pointer; font-weight: 600; padding: 6px 15px; border-radius: 20px; transition: 0.3s; }
+        .logout-btn:hover { background: rgba(255, 71, 87, 0.1); border-color: var(--danger); }
+        
+        .address-badge { background: var(--inset-bg); padding: 8px 15px; border-radius: 20px; font-family: monospace; font-size: 0.85rem; color: var(--secondary); display: inline-block; margin-bottom: 20px; }
+        
+        .balance-amount { font-family: 'Space Grotesk', sans-serif; font-size: 3.5rem; font-weight: 700; text-shadow: 0 5px 15px rgba(0,0,0,0.3); }
+        .balance-label { font-size: 1.2rem; color: rgba(255,255,255,0.6); font-weight: 600; }
+        .eth-balance { font-size: 0.85rem; color: rgba(255,255,255,0.5); margin-top: 8px; }
+
+        .auto-panel {
+            background: rgba(0, 0, 0, 0.2); border-radius: 20px; padding: 25px; margin: 25px 0;
+            border: 1px solid rgba(255, 255, 255, 0.08); position: relative;
+        }
+        .timer { font-family: 'Space Grotesk', monospace; font-size: 2.5rem; font-weight: 700; color: var(--secondary); margin: 5px 0; text-shadow: 0 0 10px var(--secondary-glow); }
+        .reward-pending { font-size: 1.4rem; color: var(--accent); font-weight: 700; }
+        .note { font-size: 0.75rem; color: rgba(255,255,255,0.5); margin-top: 8px; }
+
+        .history-container { margin-top: 35px; text-align: left; overflow-x: auto; }
+        table { width: 100%; border-collapse: separate; border-spacing: 0 8px; margin-top: 15px; font-size: 0.85rem; }
+        td { padding: 15px; background: rgba(255, 255, 255, 0.03); white-space: nowrap; }
+        td:first-child { border-top-left-radius: 12px; border-bottom-left-radius: 12px; }
+        td:last-child { border-top-right-radius: 12px; border-bottom-right-radius: 12px; }
+        .hash-link { color: rgba(255,255,255,0.5); text-decoration: none; font-family: monospace; border-bottom: 1px dotted rgba(255,255,255,0.3); transition: 0.3s; }
+        .hash-link:hover { color: var(--secondary); border-bottom-color: var(--secondary); }
+        .status { margin-top: 15px; font-size: 0.9rem; min-height: 25px; color: var(--secondary); font-weight: 500; text-shadow: 0 0 10px var(--secondary-glow); }
+        .addr-short { font-family: monospace; color: #aaa; }
+        
+        /* Indikator Live */
+        .live-badge { font-size:0.7rem; background:var(--danger); padding:2px 8px; border-radius:10px; margin-left:10px; animation: blink 2s infinite; }
+        @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    
+    <div class="app-header">
+        <h1 class="brand-logo">🐑 SheepCoin Cloud</h1>
+    </div>
+
+    <div id="loginPage" class="card">
+        <h2>Web3 Mining Terminal</h2>
+        <p style="color: rgba(255,255,255,0.7); margin-bottom: 30px;">Hubungkan dompet Anda untuk memulai mining di jaringan Sepolia.</p>
+        <button class="btn btn-connect" onclick="connectWallet()">
+            🦊 Hubungkan MetaMask
+        </button>
+    </div>
+
+    <div id="dashboardPage" class="card" style="display: none;">
+        <div class="wallet-header">
+            <h2 style="margin:0;">Dompet Saya</h2>
+            <button class="logout-btn" onclick="logout()">🛑 Logout</button>
+        </div>
+        
+        <div class="address-badge" id="userAddress">0x...</div>
+        
+        <div class="balance-container">
+            <div class="balance-amount"><span id="userBalance">0.00</span></div>
+            <div class="balance-label">SHP COIN</div>
+        </div>
+        <div class="eth-balance">Gas Fee: <span id="ethBalance">0.0000</span> SepoliaETH</div>
+
+        <div style="margin-top: 30px;">
+            <button class="btn btn-mine" onclick="mineToken()" id="btnMine">🎲 Manual Mining (Gacha)</button>
+        </div>
+
+        <div class="auto-panel">
+            <h3 style="color: var(--secondary); margin-bottom: 20px;">⚡ Auto Mining System</h3>
+            
+            <div id="activeMiningUI" style="display:none;">
+                <div style="font-size:0.9rem; color:rgba(255,255,255,0.7); text-transform:uppercase;" id="timerLabel">Status Mesin:</div>
+                <div class="timer" id="timeLeft">00:00:00</div>
+                
+                <div style="background: rgba(241, 196, 15, 0.1); border: 1px solid rgba(241, 196, 15, 0.3); padding: 10px; border-radius: 12px; margin: 15px 0;">
+                    <div style="font-size:0.8rem; color:rgba(255,255,255,0.6);">Estimasi Pendapatan (Range):</div>
+                    <div class="reward-pending">~<span id="pendingReward">0.00</span> SHP</div>
+                </div>
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                    <button class="btn btn-claim" onclick="claimAuto()" id="btnClaim">💰 Klaim</button>
+                    <button class="btn btn-stop" onclick="stopMining()" id="btnStop">🛑 Stop</button>
+                </div>
+            </div>
+
+            <div id="buyPackageUI" style="margin-top: 20px;">
+                <label style="text-align:left; display:block; color:rgba(255,255,255,0.7); font-size:0.9rem;">Pilih Paket (Bayar dengan SHP):</label>
+                <select id="packageSelect">
+                    <option value="0">⏳ 15 Menit - 10 SHP</option>
+                    <option value="1">⏳ 30 Menit - 20 SHP</option>
+                    <option value="2" selected>⏳ 1 Jam - 50 SHP</option>
+                    <option value="3">⏳ 2 Jam - 100 SHP</option>
+                    <option value="4">⏳ 5 Jam - 250 SHP</option>
+                    <option value="5">⏳ 12 Jam - 600 SHP</option>
+                </select>
+                <button class="btn btn-buy" onclick="buyPackage()" id="btnBuy">🛒 Aktifkan Paket</button>
+                <p class="note">*) Koin SHP yang digunakan akan dibakar (Burn).</p>
+            </div>
+        </div>
+
+        <hr style="border: none; height: 1px; background: rgba(255,255,255,0.1); margin: 30px 0;">
+
+        <h3 style="text-align: left;">🚀 Transfer Cepat</h3>
+        <div style="text-align:left;">
+            <input type="text" id="recipient" placeholder="Alamat Penerima (0x...)">
+            <input type="number" id="amount" placeholder="Jumlah SHP">
+        </div>
+        <button class="btn btn-send" onclick="sendToken()" id="btnSend">Kirim Koin Sekarang</button>
+
+        <div class="status" id="statusLog"></div>
+
+        <div class="history-container">
+            <h3 style="display:flex; align-items:center;">🌍 Global Ledger <span class="live-badge">LIVE</span></h3>
+            <table id="historyTable"><tr><td>Sedang memuat data blockchain...</td></tr></table>
+        </div>
+    </div>
+</div>
+
+<script>
+    // ==========================================
+    // ⚠️ PASTE ALAMAT KONTRAK ANDA DISINI ⚠️
+    // ==========================================
+    const CONTRACT_ADDRESS = "0x3C37B4020e116561828e0eaFC73B2EC31d761F24"; 
+    
+    const SEPOLIA_CHAIN_ID = '0xaa36a7'; 
+
+    const ABI = [
+        "function balanceOf(address) view returns (uint256)",
+        "function transfer(address to, uint amount) returns (bool)",
+        "function mineReward() external",
+        "function buyPackage(uint256 packageId) external", 
+        "function claimAutoReward() external",
+        "function stopMining() external", 
+        "function miningDeadline(address) view returns (uint256)", 
+        "function lastClaimTime(address) view returns (uint256)",
+        "event Transfer(address indexed from, address indexed to, uint256 value)"
+    ];
+
+    let contract, signer, userAddr;
+    let localDeadline = 0, lastClaim = 0, timerInterval;
+    let isTransactionBusy = false; 
+    const PRICES_SHP = [10, 20, 50, 100, 250, 600];
+
+    async function connectWallet() {
+        if(!window.ethereum) return alert("Install MetaMask!");
+        try {
+            await window.ethereum.request({ method: "wallet_requestPermissions", params: [{ eth_accounts: {} }] });
+            await forceSwitchNetwork();
+            const provider = new ethers.providers.Web3Provider(window.ethereum);
+            await provider.send("eth_requestAccounts", []); 
+            const providerFinal = new ethers.providers.Web3Provider(window.ethereum);
+            signer = providerFinal.getSigner();
+            contract = new ethers.Contract(CONTRACT_ADDRESS, ABI, signer);
+            userAddr = await signer.getAddress();
+            document.getElementById('loginPage').style.display = 'none';
+            document.getElementById('dashboardPage').style.display = 'block';
+            document.getElementById('userAddress').innerText = userAddr;
+            const balWei = await providerFinal.getBalance(userAddr);
+            document.getElementById('ethBalance').innerText = parseFloat(ethers.utils.formatEther(balWei)).toFixed(4);
+            
+            await refreshBlockchainData();
+            
+            // --- AKTIFKAN REAL-TIME LISTENER ---
+            setupRealtimeListener();
+
+            if(timerInterval) clearInterval(timerInterval);
+            timerInterval = setInterval(updateLocalTimer, 1000);
+        } catch (err) { console.error(err); if(err.code === 4001) alert("Login dibatalkan."); }
+    }
+
+    // --- FUNGSI BARU: REAL-TIME LISTENER (TANPA REFRESH) ---
+    function setupRealtimeListener() {
+        // CCTV: Jika ada event 'Transfer' dari siapa saja, ke siapa saja
+        contract.on("Transfer", (from, to, value, event) => {
+            console.log("Transaksi Baru Terdeteksi!", event);
+            
+            // 1. Refresh Data Saldo & Status
+            refreshBlockchainData(); 
+            
+            // 2. Beri Notifikasi Kecil di Log
+            const amt = parseFloat(ethers.utils.formatUnits(value, 18)).toFixed(2);
+            setStatus(`🔔 Info: Ada transaksi baru sebesar ${amt} SHP di jaringan.`);
+            
+            // Efek berkedip pada tabel (Opsional, biar terasa live)
+            const table = document.getElementById('historyTable');
+            table.style.opacity = "0.5";
+            setTimeout(() => table.style.opacity = "1", 300);
+        });
+    }
+
+    async function forceSwitchNetwork() {
+        const chainId = await window.ethereum.request({ method: 'eth_chainId' });
+        if (chainId !== SEPOLIA_CHAIN_ID) {
+            try { await window.ethereum.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: SEPOLIA_CHAIN_ID }] }); } 
+            catch (err) { alert("Pastikan Anda di jaringan Sepolia!"); throw err; }
+        }
+    }
+
+    function logout() { location.reload(); }
+
+    async function refreshBlockchainData() {
+        try {
+            const rawBal = await contract.balanceOf(userAddr);
+            document.getElementById('userBalance').innerText = parseFloat(ethers.utils.formatUnits(rawBal, 18)).toFixed(2);
+            const rawDeadline = await contract.miningDeadline(userAddr);
+            localDeadline = rawDeadline.toNumber();
+            const rawLastClaim = await contract.lastClaimTime(userAddr);
+            lastClaim = rawLastClaim.toNumber();
+            loadHistory(); 
+        } catch(e) { console.log("Sync error...", e); }
+    }
+
+    function updateLocalTimer() {
+        const now = Math.floor(Date.now() / 1000);
+        const timeLeft = localDeadline - now;
+        const endPoint = (now < localDeadline) ? now : localDeadline;
+        let durasiBelumKlaim = endPoint - lastClaim;
+        if (durasiBelumKlaim < 0) durasiBelumKlaim = 0;
+
+        const btnMine = document.getElementById('btnMine');
+        
+        // --- HITUNG RENTANG MIN - MAX (AGAR USER TIDAK BINGUNG) ---
+        const minReward = (durasiBelumKlaim * 0.01).toFixed(2);
+        const maxReward = (durasiBelumKlaim * 0.05).toFixed(2);
+        const rewardText = `${minReward} - ${maxReward}`;
+
+        if (timeLeft > 0) {
+            document.getElementById('activeMiningUI').style.display = 'block';
+            document.getElementById('buyPackageUI').style.display = 'block'; 
+            document.getElementById('btnBuy').innerText = "🛒 Perpanjang Paket";
+            const h = Math.floor(timeLeft / 3600).toString().padStart(2,'0');
+            const m = Math.floor((timeLeft % 3600) / 60).toString().padStart(2,'0');
+            const s = (timeLeft % 60).toString().padStart(2,'0');
+            document.getElementById('timeLeft').innerText = `${h}:${m}:${s}`;
+            document.getElementById('timerLabel').innerText = "Status Mesin: BERJALAN";
+            document.getElementById('timerLabel').style.color = "var(--secondary)";
+            
+            // TAMPILKAN RENTANG
+            document.getElementById('pendingReward').innerText = rewardText;
+
+            btnMine.disabled = true;
+            btnMine.innerText = "🚫 Auto Mining Sedang Jalan...";
+            btnMine.style.cursor = "not-allowed";
+        
+        } else if (durasiBelumKlaim > 0) {
+             document.getElementById('activeMiningUI').style.display = 'block';
+             document.getElementById('buyPackageUI').style.display = 'block';
+             document.getElementById('btnBuy').innerText = "🛒 Beli Paket Baru";
+             document.getElementById('timeLeft').innerText = "SELESAI";
+             document.getElementById('timerLabel').innerText = "Status Mesin: MENUNGGU KLAIM";
+             document.getElementById('timerLabel').style.color = "var(--accent)";
+             
+             // TAMPILKAN RENTANG
+             document.getElementById('pendingReward').innerText = rewardText;
+             
+             if (!isTransactionBusy) {
+                 btnMine.disabled = false;
+                 btnMine.innerText = "🎲 Manual Mining (Gacha)";
+                 btnMine.style.cursor = "pointer";
+             }
+
+        } else {
+            document.getElementById('activeMiningUI').style.display = 'none';
+            document.getElementById('buyPackageUI').style.display = 'block';
+            document.getElementById('btnBuy').innerText = "🛒 Aktifkan Paket";
+
+            if (!isTransactionBusy) {
+                 btnMine.disabled = false;
+                 btnMine.innerText = "🎲 Manual Mining (Gacha)";
+                 btnMine.style.cursor = "pointer";
+            }
+        }
+    }
+
+    async function checkNetworkBeforeTx() {
+        const chainId = await window.ethereum.request({ method: 'eth_chainId' });
+        if (chainId !== SEPOLIA_CHAIN_ID) {
+            alert("Jaringan salah! Memindahkan ke Sepolia...");
+            await forceSwitchNetwork();
+            const provider = new ethers.providers.Web3Provider(window.ethereum);
+            signer = provider.getSigner();
+            contract = new ethers.Contract(CONTRACT_ADDRESS, ABI, signer);
+        }
+    }
+
+    async function buyPackage() {
+        await checkNetworkBeforeTx();
+        const select = document.getElementById('packageSelect');
+        const packageId = select.value; 
+        const priceSHP = PRICES_SHP[packageId];
+        const currentBal = parseFloat(document.getElementById('userBalance').innerText);
+        if (currentBal < priceSHP) return alert(`Saldo SHP Kurang! Butuh ${priceSHP} SHP.`);
+        
+        setStatus(`⏳ Membeli paket (${priceSHP} SHP)...`);
+        setLoading(true);
+        try {
+            const tx = await contract.buyPackage(packageId, { gasLimit: 500000 });
+            await tx.wait();
+            setStatus("✅ Paket Aktif!");
+            refreshBlockchainData();
+        } catch(e) { handleTxError(e); }
+        finally { setLoading(false); }
+    }
+
+    async function stopMining() {
+        if(!confirm("Yakin stop?")) return;
+        await checkNetworkBeforeTx();
+        setStatus("⏳ Stopping...");
+        setLoading(true);
+        try {
+            const tx = await contract.stopMining({ gasLimit: 500000 });
+            await tx.wait();
+            setStatus("🛑 Berhenti.");
+            refreshBlockchainData();
+        } catch(e) { handleTxError(e); }
+        finally { setLoading(false); }
+    }
+
+    async function claimAuto() {
+        await checkNetworkBeforeTx();
+        setStatus("⏳ Mengklaim...");
+        setLoading(true);
+        try {
+            const tx = await contract.claimAutoReward({ gasLimit: 500000 });
+            await tx.wait();
+            setStatus("✅ Cair!");
+            refreshBlockchainData();
+        } catch(e) { handleTxError(e); }
+        finally { setLoading(false); }
+    }
+
+    async function mineToken() {
+        await checkNetworkBeforeTx();
+        setStatus("⏳ Mining...");
+        setLoading(true);
+        try {
+            const tx = await contract.mineReward({ gasLimit: 300000 });
+            await tx.wait();
+            setStatus("✅ Sukses!");
+            refreshBlockchainData();
+        } catch(e) { handleTxError(e); }
+        finally { setLoading(false); }
+    }
+
+    async function sendToken() {
+        await checkNetworkBeforeTx();
+        const to = document.getElementById('recipient').value;
+        const amt = document.getElementById('amount').value;
+        if(!to || !amt) return alert("Isi lengkap!");
+        setStatus("⏳ Mengirim...");
+        setLoading(true);
+        try {
+            const tx = await contract.transfer(to, ethers.utils.parseUnits(amt, 18), { gasLimit: 300000 });
+            await tx.wait();
+            setStatus("✅ Terkirim!");
+            refreshBlockchainData();
+        } catch(e) { handleTxError(e); }
+        finally { setLoading(false); }
+    }
+
+    function handleTxError(e) {
+        if(e.code === "INSUFFICIENT_FUNDS" || e.message.includes("insufficient funds")) {
+            setStatus("❌ Gagal: Tidak ada ETH (Gas)!");
+            alert("Gagal: Anda butuh SepoliaETH untuk biaya gas.");
+        } else { setStatus("❌ Gagal: " + (e.reason || e.message)); }
+    }
+
+    async function loadHistory() {
+        if(!contract) return;
+        const table = document.getElementById('historyTable');
+        const filterAll = contract.filters.Transfer(); 
+        const logs = await contract.queryFilter(filterAll, -2000);
+        table.innerHTML = `<tr><th>Aktivitas</th><th>Pelaku</th><th>Jumlah</th><th>Bukti</th></tr>`;
+        const recentLogs = logs.reverse().slice(0, 15); 
+        recentLogs.forEach(log => {
+            const { from, to, value } = log.args;
+            const amt = parseFloat(ethers.utils.formatUnits(value, 18)).toFixed(2);
+            let actionHtml = "", actorsHtml = "", color = "";
+            if (from === ethers.constants.AddressZero) {
+                actionHtml = "⛏️ Mining/Reward"; color = "var(--success)"; 
+                actorsHtml = `<span class='addr-short'>${to.substring(0,6)}...</span>`;
+            } else if (to === ethers.constants.AddressZero) {
+                actionHtml = "🔥 Beli Paket"; color = "#e67e22"; 
+                actorsHtml = `<span class='addr-short'>${from.substring(0,6)}...</span>`;
+            } else {
+                actionHtml = "↔️ Transfer"; color = "var(--secondary)"; 
+                actorsHtml = `<span class='addr-short'>${from.substring(0,4)}..➡${to.substring(0,4)}..</span>`;
+            }
+            const hashShort = log.transactionHash.substring(0, 6) + "...";
+            const hashLink = `<a href="https://sepolia.etherscan.io/tx/${log.transactionHash}" target="_blank" class="hash-link">🔗 ${hashShort}</a>`;
+            table.innerHTML += `<tr><td style="color:${color}; font-weight:bold;">${actionHtml}</td><td>${actorsHtml}</td><td style="font-weight:bold;">${amt}</td><td>${hashLink}</td></tr>`;
+        });
+        if(recentLogs.length === 0) table.innerHTML = "<tr><td colspan='4' style='text-align:center; padding: 20px; color: rgba(255,255,255,0.5);'>Belum ada aktivitas global.</td></tr>";
+    }
+
+    function setStatus(msg) { document.getElementById('statusLog').innerText = msg; }
+    
+    function setLoading(isBusy) {
+        isTransactionBusy = isBusy; 
+        const btns = ['btnMine', 'btnBuy', 'btnClaim', 'btnStop', 'btnSend'];
+        btns.forEach(id => { if(document.getElementById(id)) document.getElementById(id).disabled = isBusy; });
+    }
+</script>
+
+</body>
+</html>
